@@ -1,16 +1,19 @@
 import requests
 import json
 
-def create_separation(path_to_file, api_token, sep_type, add_opt1, add_opt2):
+def create_separation(path_to_file, api_token, sep_type, add_opt1, add_opt2, add_opt3):
     files = {
         'audiofile': open(path_to_file, 'rb'),
         'api_token': (None, api_token),
         'sep_type': (None, sep_type),
         'add_opt1': (None, add_opt1),
         'add_opt2': (None, add_opt2),
+        'add_opt3': (None, add_opt3),
         'output_format': (None, '1'),
         'is_demo': (None, '1'),
     }
+    print("files")
+    print(files)
 
     response = requests.post('https://mvsep.com/api/separation/create', files=files)
     if  response.status_code == 200:

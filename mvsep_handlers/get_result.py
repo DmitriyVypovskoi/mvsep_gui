@@ -7,7 +7,9 @@ def download_file(url, filename, save_path):
     """
     Download the file from the specified URL and save it in the specified path.
     """
+    print("start download")
     response = requests.get(url)
+    print("end download")
 
     if response.status_code == 200:
         # Ensure the directory exists

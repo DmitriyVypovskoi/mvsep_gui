@@ -13,6 +13,7 @@ def get_separation_types():
         # Парсим ответ в JSON
         data = response.json()
         result = {}  # Создаем новый словарь для сохранения данных по render_id
+        algorithm_fields_result = {}
 
         # Проверка структуры данных (для отладки)
         if isinstance(data, list):  # Проверяем, что data - это список
@@ -21,6 +22,7 @@ def get_separation_types():
                     render_id = algorithm.get('render_id', 'N/A')
                     name = algorithm.get('name', 'N/A')
                     algorithm_group_id = algorithm.get('algorithm_group_id', 'N/A')
+                    # print(f"{render_id}: {name}, Group ID: {algorithm_group_id}")
 
                     # Дополнительные поля
                     algorithm_fields = algorithm.get('algorithm_fields', [])
@@ -30,7 +32,7 @@ def get_separation_types():
                             field_text = field.get('text', 'N/A')
                             field_options = field.get('options', 'N/A')
                             # Печать дополнительных полей (можно удалить, если не нужно)
-                            print(f"\tField Name: {field_name}, Field Text: {field_text}, Options: {field_options}")
+                            # print(f"\tField Name: {field_name}, Field Text: {field_text}, Options: {field_options}")
 
                     # Описания алгоритма
                     algorithm_descriptions = algorithm.get('algorithm_descriptions', [])
@@ -39,18 +41,20 @@ def get_separation_types():
                             short_desc = description.get('short_description', 'N/A')
                             lang = description.get('lang', 'N/A')
                             # Печать описания алгоритма (можно удалить, если не нужно)
-                            print(f"\tShort Description: {short_desc}, Language: {lang}")
+                            # print(f"\tShort Description: {short_desc}, Language: {lang}")
 
                     # Сохраняем данные в result по render_id
                     result[render_id] = name
                     # Печать данных для примера
-                    print(f"{render_id}: {name}, Group ID: {algorithm_group_id}")
+                    # print(f"{render_id}: {name}, Group ID: {algorithm_group_id}")
+
+                    algorithm_fields_result[render_id] = algorithm_fields
 
         else:
             print(f"Unexpected top-level data format: {data}")
 
         # Возвращаем результат (можно использовать для дальнейшей обработки)
-        print(result)
-        return result
+        # print(result)
+        return result, algorithm_fields_result
     else:
         print(f"Request failed with status code: {response.status_code}")
