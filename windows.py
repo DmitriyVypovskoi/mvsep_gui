@@ -1,8 +1,10 @@
 import time, os, json
+import sqlite3, requests
+from datetime import datetime
 
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QPushButton, QVBoxLayout, QLabel, QDialog,
-    QComboBox, QLineEdit, QFileDialog, QSpinBox, QMessageBox, QScrollArea
+    QApplication, QWidget, QPushButton, QVBoxLayout, QGridLayout, QLabel, QDialog,
+    QComboBox, QLineEdit, QFileDialog, QTableWidget, QMessageBox, QScrollArea, QTableWidgetItem
 )
 import sys
 from PyQt6.QtCore import QMimeData, Qt, QThread, pyqtSignal, pyqtSlot
@@ -13,6 +15,8 @@ from mvsep_handlers import get_separation_types, create_separation, get_result
 
 # директория файла
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+connection = sqlite3.connect(os.path.join(BASE_DIR, 'jobs.db'), check_same_thread=False)
+
 
 # Универсальный стиль для кнопок и полей ввода (увеличены размеры)
 button_style = "font-size: 18px; padding: 20px; min-width: 300px; font-family: 'Poppins', sans-serif;"  
@@ -21,6 +25,7 @@ cs_button_style = "font-size: 18px; padding: 20px; min-width: 300px; font-family
 input_style = "font-size: 18px; padding: 15px; min-width: 300px; font-family: 'Poppins', sans-serif;"  # Стиль для текстовых полей и других элементов
 # Устанавливаем стиль для текста
 label_style = "font-size: 16px; font-family: 'Poppins', sans-serif;"
+small_label_style = "font-size: 12px; font-family: 'Poppins', sans-serif;"
 combo_style = " font-size: 16px; font-family: 'Poppins'; padding: 20px; "
 
 # Стиль для фона диалогов
@@ -42,37 +47,131 @@ path_hash_dict = {}
 separation_n = 0
 
 class SepThread(QThread):
-    stop_separation_signal = pyqtSignal(str)
 
-    def __init__(self, parent = None):
-        super(SepThread, self).__init__(parent)
-        self.hash = ""
+    def __init__(self, api_token = None, data_table = None, base_dir_label = None):
+        super(SepThread, self).__init__()
+        self.data_table = data_table
+        self.api_token = api_token
+        self.base_dir_label = base_dir_label
 
     def run(self):
-        global separation_n, path_hash_dict
-        i = 0
-        while i < 180:
-            # Получаем результат
-            output_dir = path_hash_dict[self.hash]
-            result_text = get_result.get_result(self.hash, output_dir)
-            print(f"i={i}; {self.hash}")
-            print(path_hash_dict)
-            if result_text != "":
-                # Выводим текстовый результат в диалоге
-                separation_n -= 1
-                print("good separation break")
-                print(result_text)
-                self.stop_separation_signal.emit(result_text)
-                break
-            else:
-                i += 1
-                time.sleep(1)
-            print()
+        # Создаем подключение к базе данных (файл my_database.db будет создан)
+        # self.connection = sqlite3.connect(os.path.join(BASE_DIR, 'jobs.db'), check_same_thread=False)
+        global connection
+        self.cursor = connection.cursor()
 
-        if i==179:
-            # Выводим отрицательный результат в диалоге
-            separation_n -= 1
-            self.stop_separation_signal.emit("No result per 3 min.")
+        while True:
+
+            # проверяем запущенные процессы
+            # self.cursor.execute('INSERT INTO Jobs (start_time, update_time, filename, out_dir, hash[5], status[6], separation, option1, option2, option3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (int(time.time()), int(time.time()), path, self.output_dir, "", "Added", separation_type, option1, option2, option3))
+            self.cursor.execute('SELECT * FROM Jobs ORDER BY id DESC')
+            jobs = self.cursor.fetchall()
+            print("Job: ")
+            for row, job in enumerate(jobs):
+                # self.data_table.setHorizontalHeaderLabels(["ID", "Start Time", "FileName", "Out Dir", "Separation Type", "Adv.Opt #1", "Adv.Opt #2", "Adv.Opt #3", "Status", "Update Status"])
+                # self.data_table.setHorizontalHeaderLabels(["ID", "FileName", "Separation Type""Status"])
+                job_id = int(job[0])
+                # self.data_table.setItem(row, 0, QTableWidgetItem(str(job_id)))
+                # start_date = datetime.strptime(str(job[1]), '%Y-%m-%d %H:%M')
+                start_date = datetime.fromtimestamp(job[1])
+                start_date = str(start_date.strftime('%Y-%m-%d %H:%M'))
+
+                file_name = os.path.basename(job[3])
+                self.data_table.setItem(row, 0, QTableWidgetItem(file_name))
+                
+                out_dir = job[4]
+                separation_type = str(job[7])
+                self.data_table.setItem(row, 1, QTableWidgetItem(separation_type)) # separation
+                """
+                self.data_table.setItem(row, 5, QTableWidgetItem(job[8])) #  option1
+                self.data_table.setItem(row, 6, QTableWidgetItem(job[9])) #  option2
+                self.data_table.setItem(row, 7, QTableWidgetItem(job[10])) #  option 3
+                """
+                status = str(job[6])
+                self.data_table.setItem(row, 2, QTableWidgetItem(status)) # status
+                update_time = datetime.fromtimestamp(job[2])
+                update_time = str(update_time.strftime('%H:%M:%S'))
+
+
+
+                if job[6] == "Added":
+                    # Пытаемся начать сепарацию (например, сгенерировать хеш или ошибку)
+                    self.base_dir_label.setText(f"Token: {self.api_token}")
+
+                    hash, status_code = create_separation.create_separation(job[3], self.api_token, separation_type, job[8], job[9], job[10])
+                    
+                    if status_code == 200: # Успех с хешем
+                        self.cursor.execute('UPDATE Jobs SET hash = ? WHERE id = ?', (hash, job[0]))  
+                        self.cursor.execute('UPDATE Jobs SET status = ? WHERE id = ?', ("Process", job[0]))
+                        self.cursor.execute('UPDATE Jobs SET update_time = ? WHERE id = ?', (int(time.time()), job[0]))   
+
+                        self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Added -> Process", ""))
+                    
+                    else:
+                        self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Error Start Process", f"response.content: {hash}"))
+                        print("error start process")
+                        print(hash)
+
+    
+
+                
+                # подключаем тред проверки хода сепарации
+                if job[6] == "Process":
+                        self.cursor.execute('UPDATE Jobs SET update_time = ? WHERE id = ?', (int(time.time()), job[0]))
+                        self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Process", f""))
+
+
+                        params = {'hash': job[5]}
+                        response = requests.get('https://mvsep.com/api/separation/get', params=params)
+                        data = json.loads(response.content.decode('utf-8'))
+                        
+                        if data['success']:
+                            self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Process -> Success", f""))
+
+                            files = []
+                            try:
+                                files = data['data']['files']
+                            except KeyError:
+                                pass
+                                self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Process -> No Files", f""))
+
+                            for file_info in files:
+                                url = file_info['url'].replace('\\/', '/')  # Correct slashes
+                                filename = file_info['download']  # File name for saving
+                                # download_file(url, filename, save_path)
+                                self.cursor.execute('UPDATE Jobs SET status = ? WHERE id = ?', ("Download", job[0]))
+                                self.cursor.execute('UPDATE Jobs SET update_time = ? WHERE id = ?', (int(time.time()), job[0]))                    
+                                self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Process -> Download", f"filename: {filename}"))
+
+                                print(f"Start download: {url}")
+                                response = requests.get(url)
+                                if response.status_code == 200:
+                                    # Ensure the directory exists
+                                    if not os.path.exists(job[4]):
+                                        os.makedirs(job[4])
+                                    file_path = os.path.join(job[4], filename)
+                                    # Save the content of the response to the file
+                                    with open(file_path, 'wb') as f:
+                                        f.write(response.content)
+                                        self.cursor.execute('UPDATE Jobs SET status = ? WHERE id = ?', ("Complete", job[0]))
+                                    self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Process -> Complete", f"filename: {filename}"))
+
+
+                        else:
+                            self.cursor.execute('UPDATE Jobs SET status = ? WHERE id = ?', ("Error", job[0]))
+                            self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Process -> Error", f""))
+
+                    
+                    
+
+
+            self.data_table.resizeColumnsToContents()
+            connection.commit()
+            time.sleep(1)
+            
+        
+
+
 
 
 
@@ -86,11 +185,11 @@ class DragButton(QPushButton):
         e.accept()
 
     def dropEvent(self, event):
-        self.selected_file = ""
+        self.selected_files = []
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 file_path = url.toLocalFile()
-                self.selected_file = file_path
+                self.selected_files.append(file_path)
             event.accept()
             self.dragged.emit()
         else:
@@ -109,14 +208,50 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         
+        # Создаем подключение к базе данных (файл my_database.db будет создан)
+        global connection
+        self.cursor = connection.cursor()
+
+        # Создаем таблицу Jobs
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        start_time INTEGER,
+        update_time INTEGER,
+        filename TEXT NOT NULL,
+        out_dir TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        status TEXT NOT NULL,
+        separation INTEGER,
+        option1 TEXT NOT NULL,
+        option2 TEXT NOT NULL,
+        option3 TEXT NOT NULL
+        )
+        ''')
+        connection.commit()
+
+
+        # Создаем таблицу Log
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER,
+        update_time INTEGER,
+        action TEXT NOT NULL,
+        comment TEXT NOT NULL
+        )
+        ''')
+        connection.commit()
+
+
 
         self.setWindowTitle("Create Separation")
         self.setGeometry(50, 50, 400, 400)
-        self.setFixedSize(400, 800)
-        layout = QVBoxLayout()
+        self.setFixedSize(800, 800)
+        layout = QGridLayout()
 
         self.token_filename = os.path.join(BASE_DIR, "api_token.txt")
-        self.selected_file = None
+        self.selected_files = []
         self.output_dir = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop') 
         self.algorithm_fields = {}
 
@@ -132,6 +267,7 @@ class MainWindow(QWidget):
         self.type_label = QLabel("Separation Type")
         self.type_label.setStyleSheet(label_style)
 
+        
         self.data, self.algorithm_fields = get_separation_types.get_separation_types()
         
         # Сортируем словарь по ключу
@@ -147,10 +283,21 @@ class MainWindow(QWidget):
         self.type_combo.currentIndexChanged.connect(self.on_selection_change)
 
         self.type_combo.setStyleSheet(combo_style)
-        layout.addWidget(self.type_label)
-        layout.addWidget(self.type_combo)
-
+        layout.addWidget(self.type_label, 0, 0)
+        layout.addWidget(self.type_combo, 1, 0)
         
+
+
+        self.data_table = QTableWidget(self)  # Create a table
+        self.data_table.setColumnCount(3)     #Set three columns
+        self.data_table.setRowCount(24) 
+        layout.addWidget(self.data_table, 0, 1, 0, 10)
+        self.data_table.setHorizontalHeaderLabels(["FileName", "Separation Type", "Status"])
+        self.data_table.setMinimumWidth(380)
+        self.data_table.resizeColumnsToContents()
+
+
+
         # Поле для API Token
         self.api_label = QLabel("API Token")
         self.api_label.setStyleSheet(label_style)
@@ -163,14 +310,14 @@ class MainWindow(QWidget):
                 if len(api_token) == 30:
                     self.api_input.setText(api_token)
 
-        layout.addWidget(self.api_label)
-        layout.addWidget(self.api_input)
+        layout.addWidget(self.api_label, 2, 0)
+        layout.addWidget(self.api_input, 3, 0)
 
         # Ссылка для API Token
         self.api_link_label = QLabel("<a href='https://mvsep.com/ru/full_api'>Get Token</a>")
         self.api_link_label.setStyleSheet(label_style)
         self.api_link_label.setOpenExternalLinks(True)
-        layout.addWidget(self.api_link_label)
+        layout.addWidget(self.api_link_label, 4, 0)
 
 
 
@@ -182,8 +329,8 @@ class MainWindow(QWidget):
         self.option1_combo.setStyleSheet(combo_style)
         # Настроим обработчик для выбора
         self.option1_combo.currentIndexChanged.connect(self.on_change_option1)
-        layout.addWidget(self.option1_label)
-        layout.addWidget(self.option1_combo)
+        layout.addWidget(self.option1_label, 5, 0)
+        layout.addWidget(self.option1_combo, 6, 0)
 
         # Добавляем дополнительные опции 1, 2, 3
         self.option2_label = QLabel("Additional Option 2")
@@ -193,8 +340,8 @@ class MainWindow(QWidget):
         self.option2_combo.setStyleSheet(combo_style)
         # Настроим обработчик для выбора
         self.option2_combo.currentIndexChanged.connect(self.on_change_option2)
-        layout.addWidget(self.option2_label)
-        layout.addWidget(self.option2_combo)
+        layout.addWidget(self.option2_label,7,0)
+        layout.addWidget(self.option2_combo,8,0)
 
         # Добавляем дополнительные опции 1, 2, 3
         self.option3_label = QLabel("Additional Option 3")
@@ -204,8 +351,8 @@ class MainWindow(QWidget):
         self.option3_combo.setStyleSheet(combo_style)
         # Настроим обработчик для выбора
         self.option3_combo.currentIndexChanged.connect(self.on_change_option3)
-        layout.addWidget(self.option3_label)
-        layout.addWidget(self.option3_combo)
+        layout.addWidget(self.option3_label,9,0)
+        layout.addWidget(self.option3_combo,10,0)
 
 
 
@@ -213,7 +360,7 @@ class MainWindow(QWidget):
         self.filename_label = QLabel("Audio selected:")
         self.filename_label.setStyleSheet(label_style)
         self.filename_label.setOpenExternalLinks(True)
-        layout.addWidget(self.filename_label)
+        layout.addWidget(self.filename_label,11,0)
         # Кнопка для выбора файла
         self.file_button = DragButton("Select File")
         self.file_button.setAcceptDrops(True)
@@ -221,18 +368,18 @@ class MainWindow(QWidget):
         self.file_button.clicked.connect(self.select_file)
         self.file_button.dragged.connect(self.select_drag_file)
 
-        layout.addWidget(self.file_button)
+        layout.addWidget(self.file_button,12,0)
 
 
         # Выбранная директория
         self.output_dir_label = QLabel(f"Output Dir: {self.output_dir}")
         self.output_dir_label.setStyleSheet(label_style)
-        layout.addWidget(self.output_dir_label)
+        layout.addWidget(self.output_dir_label,13,0)
         # Кнопка для выбора директории результатов
         self.output_dir_button = QPushButton("Select Output Dir")
         self.output_dir_button.setStyleSheet(button_style)
         self.output_dir_button.clicked.connect(self.select_output_dir)
-        layout.addWidget(self.output_dir_button)
+        layout.addWidget(self.output_dir_button,14,0)
 
 
 
@@ -241,24 +388,50 @@ class MainWindow(QWidget):
         self.create_button = QPushButton("Create Separation")
         self.create_button.setStyleSheet(cs_button_style)
         self.create_button.clicked.connect(self.process_separation)
-        layout.addWidget(self.create_button)
+        layout.addWidget(self.create_button,15,0)
+
+        # Base Dir
+        self.base_dir_label = QLabel(f"Base Dir: {BASE_DIR}")
+        self.base_dir_label.setStyleSheet(small_label_style)
+        layout.addWidget(self.base_dir_label,16,0)
+
 
         self.setLayout(layout)
+        # self.connection.close()
+
+        # подключаем тред проверки хода сепарации
+        
+        self.st = SepThread(api_token = self.api_input.text(), data_table = self.data_table, base_dir_label=self.base_dir_label)
+        self.st.start()
+
+
+
+
+
+
+
+
+
+
+
 
 
 
     def select_file(self):
         # Открываем диалог для выбора файла
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "", "Audio Files (*.mp3 *.wav)")
-        if file_path:
-            self.selected_file = file_path
-            print(f"File selected: {self.selected_file}")
-            self.filename_label.setText(f"Audio selected: {os.path.basename(self.selected_file)}")
+        self.selected_files = QFileDialog.getOpenFileNames(self, "Select File", "", "Audio Files (*.mp3 *.wav)")
+        self.selected_files = self.selected_files[0]
+        print(f"Files selected:")
+        print(self.selected_files)
+        if len(self.selected_files) > 0:
+            self.filename_label.setText(f"Audio selected: {os.path.basename(self.selected_files[0])}")
 
     def select_drag_file(self):
-        self.selected_file = self.file_button.selected_file
-        print(f"File selected: {self.selected_file}")
-        self.filename_label.setText(f"Audio selected: {os.path.basename(self.selected_file)}")
+        self.selected_files = self.file_button.selected_files
+        print(f"Files selected:")
+        print(self.selected_files)
+        if len(self.selected_files) > 0:
+            self.filename_label.setText(f"Audio selected: {os.path.basename(self.selected_files[0])}")
 
 
 
@@ -362,7 +535,8 @@ class MainWindow(QWidget):
     
     
     def process_separation(self):
-        global path_hash_dict, start_result, separation_n
+        global path_hash_dict, separation_n, connection
+
         for key, value in self.data.items():
             if value == self.type_combo.currentText():
                 self.selected_key = key
@@ -372,12 +546,11 @@ class MainWindow(QWidget):
         option1 = self.selected_opt1
         option2 = self.selected_opt2
         option3 = self.selected_opt3
-        path = self.selected_file
 
         # Очистим стиль полей перед проверкой
         self.clear_styles()
         # Валидация
-        if not path:  # Если файл не выбран
+        if len(self.selected_files) == 0:  # Если файл не выбран
             self.file_button.setStyleSheet("background-color: red; font-size: 18px; padding: 20px; min-width: 300px;")  # Подсвечиваем кнопку красным
         if not api_token:  # Если API токен пустой
             self.api_input.setStyleSheet("border: 2px solid red; font-size: 18px; padding: 15px; min-width: 300px;")
@@ -390,15 +563,55 @@ class MainWindow(QWidget):
             self.type_combo.setStyleSheet(f"border: 2px solid red; {combo_style}")
 
         # Проверка: если есть ошибки, не продолжаем процесс
-        if (path == None) or not api_token or not separation_type:
+        if (len(self.selected_files) == 0) or not api_token or not separation_type:
             os.system('cls')
             print("Error separation:")
-            print(f"path: {path}")
             print(f"api_token: {api_token}")
             print(f"separation_type: {separation_type}")
             return
 
+        
+        self.st.api_token = self.api_input.text()
+        """
+        start_time INTEGER,
+        update_time INTEGER,
+        filename TEXT NOT NULL,
+        out_dir TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        status TEXT NOT NULL,
+        separation INTEGER,
+        option1 TEXT NOT NULL,
+        option2 TEXT NOT NULL,
+        option3 TEXT NOT NULL,
+        
+        """
+        for file in self.selected_files:
+            # Добавляем новое задание
+            self.cursor.execute('INSERT INTO Jobs (start_time, update_time, filename, out_dir, hash, status, separation, option1, option2, option3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (int(time.time()), int(time.time()), file, self.output_dir, "", "Added", separation_type, option1, option2, option3))
+            connection.commit()
+
+            self.cursor.execute('SELECT * FROM Jobs ORDER BY id DESC LIMIT 0,1')
+            jobs = self.cursor.fetchall()
+            for job in jobs:
+                job_id = int(job[0])
+            print(f"job_id: {job_id}")
+            
+            
+            # Логируем
+            """
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER,
+            update_time INTEGER,
+            action TEXT NOT NULL,
+            comment TEXT NOT NULL
+            
+            """
+            self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Added", ""))
+            connection.commit()
+
+
         # Пытаемся начать сепарацию (например, сгенерировать хеш или ошибку)
+        """
         result = self.start_separation(separation_type, api_token, option1, option2, option3, path)
         if 'hash' in result:
             # подключаем тред проверки хода сепарации
@@ -411,7 +624,7 @@ class MainWindow(QWidget):
             self.st.hash = result["hash"]
             self.st.start()
             QMessageBox.information(self, "Result", f"Thread #{separation_n}\nin progress") 
-
+        """
     def stop_separation(self, result_text):
         global separation_n
         # завершение сепарации
