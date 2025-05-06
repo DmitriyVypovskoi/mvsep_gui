@@ -3,8 +3,8 @@ import sqlite3, requests
 from datetime import datetime
 
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QPushButton, QVBoxLayout, QGridLayout, QLabel, QDialog,
-    QComboBox, QLineEdit, QFileDialog, QTableWidget, QMessageBox, QScrollArea, QTableWidgetItem
+    QApplication, QWidget, QPushButton, QAbstractItemView, QGridLayout, QLabel, QDialog,
+    QComboBox, QLineEdit, QFileDialog, QTableWidget, QMessageBox, QScrollArea, QTableWidgetItem, QTextEdit
 )
 import sys
 from PyQt6.QtCore import QMimeData, Qt, QThread, pyqtSignal, pyqtSlot
@@ -66,7 +66,6 @@ class SepThread(QThread):
             # self.cursor.execute('INSERT INTO Jobs (start_time, update_time, filename, out_dir, hash[5], status[6], separation, option1, option2, option3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (int(time.time()), int(time.time()), path, self.output_dir, "", "Added", separation_type, option1, option2, option3))
             self.cursor.execute('SELECT * FROM Jobs ORDER BY id DESC')
             jobs = self.cursor.fetchall()
-            print("Job: ")
             for row, job in enumerate(jobs):
                 # self.data_table.setHorizontalHeaderLabels(["ID", "Start Time", "FileName", "Out Dir", "Separation Type", "Adv.Opt #1", "Adv.Opt #2", "Adv.Opt #3", "Status", "Update Status"])
                 # self.data_table.setHorizontalHeaderLabels(["ID", "FileName", "Separation Type""Status"])
@@ -96,7 +95,7 @@ class SepThread(QThread):
 
                 if job[6] == "Added":
                     # Пытаемся начать сепарацию (например, сгенерировать хеш или ошибку)
-                    self.base_dir_label.setText(f"Token: {self.api_token}")
+                    # self.base_dir_label.setText(f"Token: {self.api_token}")
 
                     hash, status_code = create_separation.create_separation(job[3], self.api_token, separation_type, job[8], job[9], job[10])
                     
@@ -165,16 +164,9 @@ class SepThread(QThread):
                     
 
 
-            self.data_table.resizeColumnsToContents()
+            # self.data_table.resizeColumnsToContents()
             connection.commit()
             time.sleep(1)
-            
-        
-
-
-
-
-
 
 
 class DragButton(QPushButton):
@@ -247,7 +239,7 @@ class MainWindow(QWidget):
 
         self.setWindowTitle("Create Separation")
         self.setGeometry(50, 50, 400, 400)
-        self.setFixedSize(800, 800)
+        self.setFixedSize(740, 600)
         layout = QGridLayout()
 
         self.token_filename = os.path.join(BASE_DIR, "api_token.txt")
@@ -263,38 +255,41 @@ class MainWindow(QWidget):
         self.selected_opt2 = 0
         self.selected_opt3 = 0
 
-        # Поле выбора типа сепарации
-        self.type_label = QLabel("Separation Type")
-        self.type_label.setStyleSheet(label_style)
+        self.selected_algoritms_list = []
 
-        
         self.data, self.algorithm_fields = get_separation_types.get_separation_types()
         
-        # Сортируем словарь по ключу
-        sorted_data = {k: v for k, v in sorted(self.data.items())}
 
-        # Инициализируем QComboBox
-        self.type_combo = QComboBox(self)
-        value = sorted_data.values()
-        # Добавляем элементы в комбобокс
-        self.type_combo.addItems(value)
-
-        # Настроим обработчик для выбора
-        self.type_combo.currentIndexChanged.connect(self.on_selection_change)
-
-        self.type_combo.setStyleSheet(combo_style)
-        layout.addWidget(self.type_label, 0, 0)
-        layout.addWidget(self.type_combo, 1, 0)
-        
-
-
-        self.data_table = QTableWidget(self)  # Create a table
+        """
+████████    █████    █████     ██        ███████   
+   ██      ██   ██   ██   ██   ██        ██        
+   ██      ███████   █████     ██        █████     
+   ██      ██   ██   ██   ██   ██   ██   ██        
+   ██      ██   ██   █████     ██████    ███████           
+        """
+        # Create a table
+        self.data_table = QTableWidget(self)  
         self.data_table.setColumnCount(3)     #Set three columns
-        self.data_table.setRowCount(24) 
-        layout.addWidget(self.data_table, 0, 1, 0, 10)
+        self.data_table.setColumnWidth(0, 185)
+        self.data_table.setColumnWidth(1, 100)
+        self.data_table.setColumnWidth(2, 50)
+        self.data_table.setRowCount(10) 
         self.data_table.setHorizontalHeaderLabels(["FileName", "Separation Type", "Status"])
-        self.data_table.setMinimumWidth(380)
-        self.data_table.resizeColumnsToContents()
+        self.data_table.setMinimumWidth(350)
+        self.data_table.setMinimumHeight(350)
+        #self.data_table.setAutoScroll(True)
+        self.data_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+
+        layout.addWidget(self.data_table, 0, 1, 0, 7, alignment=Qt.AlignmentFlag.AlignTop)
+
+
+        self.file_list_label = QLabel("Selected Files:")
+        self.file_list_label.setStyleSheet(label_style)
+        layout.addWidget(self.file_list_label, 7, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        # текстовое поле для списка файлов
+        self.file_list_text = QTextEdit(self)
+        self.file_list_text.toPlainText()
+        layout.addWidget(self.file_list_text, 8, 1, 3, 1, alignment=Qt.AlignmentFlag.AlignTop)
 
 
 
@@ -310,57 +305,28 @@ class MainWindow(QWidget):
                 if len(api_token) == 30:
                     self.api_input.setText(api_token)
 
-        layout.addWidget(self.api_label, 2, 0)
-        layout.addWidget(self.api_input, 3, 0)
+        layout.addWidget(self.api_label, 0, 0)
+        layout.addWidget(self.api_input, 1, 0)
 
         # Ссылка для API Token
         self.api_link_label = QLabel("<a href='https://mvsep.com/ru/full_api'>Get Token</a>")
         self.api_link_label.setStyleSheet(label_style)
         self.api_link_label.setOpenExternalLinks(True)
-        layout.addWidget(self.api_link_label, 4, 0)
+        layout.addWidget(self.api_link_label, 2, 0)
 
-
-
-        # Добавляем дополнительные опции 1, 2, 3
-        self.option1_label = QLabel("Additional Option 1")
-        self.option1_label.setStyleSheet(label_style)
-        # Инициализируем QComboBox
-        self.option1_combo = QComboBox(self)
-        self.option1_combo.setStyleSheet(combo_style)
-        # Настроим обработчик для выбора
-        self.option1_combo.currentIndexChanged.connect(self.on_change_option1)
-        layout.addWidget(self.option1_label, 5, 0)
-        layout.addWidget(self.option1_combo, 6, 0)
-
-        # Добавляем дополнительные опции 1, 2, 3
-        self.option2_label = QLabel("Additional Option 2")
-        self.option2_label.setStyleSheet(label_style)
-        # Инициализируем QComboBox
-        self.option2_combo = QComboBox(self)
-        self.option2_combo.setStyleSheet(combo_style)
-        # Настроим обработчик для выбора
-        self.option2_combo.currentIndexChanged.connect(self.on_change_option2)
-        layout.addWidget(self.option2_label,7,0)
-        layout.addWidget(self.option2_combo,8,0)
-
-        # Добавляем дополнительные опции 1, 2, 3
-        self.option3_label = QLabel("Additional Option 3")
-        self.option3_label.setStyleSheet(label_style)
-        # Инициализируем QComboBox
-        self.option3_combo = QComboBox(self)
-        self.option3_combo.setStyleSheet(combo_style)
-        # Настроим обработчик для выбора
-        self.option3_combo.currentIndexChanged.connect(self.on_change_option3)
-        layout.addWidget(self.option3_label,9,0)
-        layout.addWidget(self.option3_combo,10,0)
-
+        # Кнопка для запуска мастера
+        self.master_button = QPushButton("Algo Master")
+        self.master_button.setAcceptDrops(True)
+        self.master_button.setStyleSheet(button_style)
+        self.master_button.clicked.connect(self.start_master)
+        layout.addWidget(self.master_button, 3, 0)
 
 
         # Выбранный аудио файл
         self.filename_label = QLabel("Audio selected:")
         self.filename_label.setStyleSheet(label_style)
         self.filename_label.setOpenExternalLinks(True)
-        layout.addWidget(self.filename_label,11,0)
+        layout.addWidget(self.filename_label, 4, 0)
         # Кнопка для выбора файла
         self.file_button = DragButton("Select File")
         self.file_button.setAcceptDrops(True)
@@ -368,18 +334,26 @@ class MainWindow(QWidget):
         self.file_button.clicked.connect(self.select_file)
         self.file_button.dragged.connect(self.select_drag_file)
 
-        layout.addWidget(self.file_button,12,0)
+        layout.addWidget(self.file_button, 5, 0)
+
+
+        # Очистка выбранных файлов
+        self.clear_files_button = QPushButton("Clear Files")
+        self.clear_files_button.setStyleSheet(button_style)
+        self.clear_files_button.clicked.connect(self.clear_files)
+        layout.addWidget(self.clear_files_button, 6, 0)
+
 
 
         # Выбранная директория
         self.output_dir_label = QLabel(f"Output Dir: {self.output_dir}")
         self.output_dir_label.setStyleSheet(label_style)
-        layout.addWidget(self.output_dir_label,13,0)
+        layout.addWidget(self.output_dir_label, 7, 0)
         # Кнопка для выбора директории результатов
         self.output_dir_button = QPushButton("Select Output Dir")
         self.output_dir_button.setStyleSheet(button_style)
         self.output_dir_button.clicked.connect(self.select_output_dir)
-        layout.addWidget(self.output_dir_button,14,0)
+        layout.addWidget(self.output_dir_button, 8, 0)
 
 
 
@@ -388,12 +362,12 @@ class MainWindow(QWidget):
         self.create_button = QPushButton("Create Separation")
         self.create_button.setStyleSheet(cs_button_style)
         self.create_button.clicked.connect(self.process_separation)
-        layout.addWidget(self.create_button,15,0)
+        layout.addWidget(self.create_button,9,0)
 
         # Base Dir
         self.base_dir_label = QLabel(f"Base Dir: {BASE_DIR}")
         self.base_dir_label.setStyleSheet(small_label_style)
-        layout.addWidget(self.base_dir_label,16,0)
+        layout.addWidget(self.base_dir_label,10,0)
 
 
         self.setLayout(layout)
@@ -416,6 +390,13 @@ class MainWindow(QWidget):
 
 
 
+    def clear_files(self):
+        self.selected_files = []
+        self.filename_label.setText(f"No Audio selected:")
+        # добавляем в TextEdit
+        self.file_list_text.setText("")
+
+
 
     def select_file(self):
         # Открываем диалог для выбора файла
@@ -425,14 +406,27 @@ class MainWindow(QWidget):
         print(self.selected_files)
         if len(self.selected_files) > 0:
             self.filename_label.setText(f"Audio selected: {os.path.basename(self.selected_files[0])}")
+            # добавляем в TextEdit
+            self.file_list_text.setText("")
+            selected_files_text = "\n".join(self.selected_files)
+            self.file_list_text.setText(selected_files_text)
+
+            self.create_button.setText("Create Separation")
+
+
 
     def select_drag_file(self):
         self.selected_files = self.file_button.selected_files
         print(f"Files selected:")
         print(self.selected_files)
         if len(self.selected_files) > 0:
-            self.filename_label.setText(f"Audio selected: {os.path.basename(self.selected_files[0])}")
+            self.filename_label.setText(f"Audio selected: {os.path.basename(self.selected_files[0])}...")
+            # добавляем в TextEdit
+            self.file_list_text.setText("")
+            selected_files_text = "\n".join(self.selected_files)
+            self.file_list_text.setText(selected_files_text)
 
+            self.create_button.setText("Create Separation")
 
 
 
@@ -488,10 +482,7 @@ class MainWindow(QWidget):
                     # Добавляем элементы в комбобокс
                     self.option3_combo.addItems(value)
 
-
-
                 break
-
 
 
     def on_change_option1(self, index):
@@ -527,25 +518,12 @@ class MainWindow(QWidget):
         # Открываем диалог для выбора файла
         self.output_dir = QFileDialog.getExistingDirectory(self, "Select Folder to Save")
         self.output_dir_label.setText(f"Output Dir: {self.output_dir}")
-    
-    
-    
-    
-    
-    
+
     
     def process_separation(self):
         global path_hash_dict, separation_n, connection
 
-        for key, value in self.data.items():
-            if value == self.type_combo.currentText():
-                self.selected_key = key
-                break
-        separation_type = self.selected_key
         api_token = self.api_input.text()
-        option1 = self.selected_opt1
-        option2 = self.selected_opt2
-        option3 = self.selected_opt3
 
         # Очистим стиль полей перед проверкой
         self.clear_styles()
@@ -559,15 +537,14 @@ class MainWindow(QWidget):
             with open(self.token_filename, "w") as f: 
                 f.write(api_token)
 
-        if not separation_type:  # Если тип сепарации не выбран
-            self.type_combo.setStyleSheet(f"border: 2px solid red; {combo_style}")
+        if len(self.selected_algoritms_list) == 0:  # Если тип сепарации не выбран
+            self.master_button.setStyleSheet(f"border: 2px solid red; {combo_style}")
 
         # Проверка: если есть ошибки, не продолжаем процесс
-        if (len(self.selected_files) == 0) or not api_token or not separation_type:
+        if (len(self.selected_files) == 0) or not api_token or (len(self.selected_algoritms_list) == 0):
             os.system('cls')
             print("Error separation:")
             print(f"api_token: {api_token}")
-            print(f"separation_type: {separation_type}")
             return
 
         
@@ -585,46 +562,69 @@ class MainWindow(QWidget):
         option3 TEXT NOT NULL,
         
         """
-        for file in self.selected_files:
-            # Добавляем новое задание
-            self.cursor.execute('INSERT INTO Jobs (start_time, update_time, filename, out_dir, hash, status, separation, option1, option2, option3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (int(time.time()), int(time.time()), file, self.output_dir, "", "Added", separation_type, option1, option2, option3))
-            connection.commit()
+        if len(self.selected_algoritms_list) > 0:
+            for new_item in self.selected_algoritms_list:
+                separation_type = new_item["selected_key"]
+                option1 = new_item["selected_opt1"]
+                option2 = new_item["selected_opt2"]
+                option3 = new_item["selected_opt3"]
 
-            self.cursor.execute('SELECT * FROM Jobs ORDER BY id DESC LIMIT 0,1')
-            jobs = self.cursor.fetchall()
-            for job in jobs:
-                job_id = int(job[0])
-            print(f"job_id: {job_id}")
-            
-            
-            # Логируем
-            """
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            job_id INTEGER,
-            update_time INTEGER,
-            action TEXT NOT NULL,
-            comment TEXT NOT NULL
-            
-            """
-            self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Added", ""))
-            connection.commit()
+                for file in self.selected_files:
+                    # Добавляем новое задание
+                    self.cursor.execute('INSERT INTO Jobs (start_time, update_time, filename, out_dir, hash, status, separation, option1, option2, option3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (int(time.time()), int(time.time()), file, self.output_dir, "", "Added", separation_type, option1, option2, option3))
+                    connection.commit()
+
+                    self.cursor.execute('SELECT * FROM Jobs ORDER BY id DESC LIMIT 0,1')
+                    jobs = self.cursor.fetchall()
+                    for job in jobs:
+                        job_id = int(job[0])
+                    print(f"job_id: {job_id}")
+                    
+                    # Логируем
+                    """
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id INTEGER,
+                    update_time INTEGER,
+                    action TEXT NOT NULL,
+                    comment TEXT NOT NULL
+                    
+                    """
+                    self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Added from Master", ""))
+                    connection.commit()
+
+            self.selected_algoritms_list = []
 
 
-        # Пытаемся начать сепарацию (например, сгенерировать хеш или ошибку)
-        """
-        result = self.start_separation(separation_type, api_token, option1, option2, option3, path)
-        if 'hash' in result:
-            # подключаем тред проверки хода сепарации
-            path_hash_dict[result["hash"]] = self.output_dir
-            start_result = result
-            separation_n += 1
-            self.create_button.setText(f"Create Separation: [{separation_n} in progress]")
-            self.st = SepThread(self)
-            self.st.stop_separation_signal.connect(self.stop_separation)
-            self.st.hash = result["hash"]
-            self.st.start()
-            QMessageBox.information(self, "Result", f"Thread #{separation_n}\nin progress") 
-        """
+        else:
+            for file in self.selected_files:
+                # Добавляем новое задание
+                self.cursor.execute('INSERT INTO Jobs (start_time, update_time, filename, out_dir, hash, status, separation, option1, option2, option3) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', (int(time.time()), int(time.time()), file, self.output_dir, "", "Added", separation_type, option1, option2, option3))
+                connection.commit()
+
+                self.cursor.execute('SELECT * FROM Jobs ORDER BY id DESC LIMIT 0,1')
+                jobs = self.cursor.fetchall()
+                for job in jobs:
+                    job_id = int(job[0])
+                print(f"job_id: {job_id}")
+                
+                
+                # Логируем
+                """
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER,
+                update_time INTEGER,
+                action TEXT NOT NULL,
+                comment TEXT NOT NULL
+                
+                """
+                self.cursor.execute('INSERT INTO Log (job_id, update_time, action, comment) VALUES (?, ?, ?, ?)', (job_id, int(time.time()), "Added", ""))
+                connection.commit()
+
+
+
+        self.create_button.setText("Create Separation +")
+
+
     def stop_separation(self, result_text):
         global separation_n
         # завершение сепарации
@@ -632,13 +632,12 @@ class MainWindow(QWidget):
         self.create_button.setText(f"Create Separation: [{separation_n}]")
 
 
-        
-
     def clear_styles(self):
         # Сброс стилей
+        self.master_button.setStyleSheet(button_style)
         self.file_button.setStyleSheet(button_style)
         self.api_input.setStyleSheet(input_style)
-        self.type_combo.setStyleSheet(combo_style)
+
 
     def start_separation(self, separation_type, api_token, option1, option2, option3, path):
         hash, status_code = create_separation.create_separation(path, api_token, separation_type, option1, option2, option3)
@@ -648,42 +647,143 @@ class MainWindow(QWidget):
             return {"success": False, "error": hash}
 
 
+    """
+███    ███    █████     ██████   ████████   ███████   ███████    
+██ █  █ ██   ██   ██   ██           ██      ██        ██    ██   
+██  ██  ██   ███████    █████       ██      █████     ███████    
+██      ██   ██   ██        ██      ██      ██        ██  ██     
+██      ██   ██   ██   ██████       ██      ███████   ██    ██   
+    """
 
-    def show_separation_types(self):
+
+    def start_master(self):
         # Создаем форму для отображения типов разделения
         separation_dialog = QDialog(self)
         separation_dialog.setWindowTitle("Separation Types")
+        # separation_dialog.setGeometry(50, 50, 400, 400)
+        separation_dialog.setFixedSize(740, 600)
 
-        # Получаем и сортируем данные
-        self.data = get_separation_types.get_separation_types()
+
+        layout = QGridLayout(separation_dialog)
+
+        
+        # Поле выбора типа сепарации
+        self.type_label_master = QLabel("Separation Type")
+        self.type_label_master.setStyleSheet(label_style)
+        
+        self.data, self.algorithm_fields = get_separation_types.get_separation_types()
+        
+        # Сортируем словарь по ключу
         sorted_data = {k: v for k, v in sorted(self.data.items())}
 
-        # Создаем QScrollArea для прокрутки
-        scroll_area = QScrollArea(separation_dialog)
-        scroll_area.setWidgetResizable(True)
+        # Инициализируем QComboBox
+        self.type_combo_master = QComboBox(self)
+        value = sorted_data.values()
+        # Добавляем элементы в комбобокс
+        self.type_combo_master.addItems(value)
 
-        # Создаем контейнер для QLabel, чтобы использовать его в ScrollArea
-        label_widget = QWidget()
-        label_layout = QVBoxLayout(label_widget)
+        # Настроим обработчик для выбора
+        self.type_combo_master.currentIndexChanged.connect(self.on_selection_master_change)
 
-        # Формируем строки данных и добавляем их в layout как QLabel
-        for key, value in sorted_data.items():
-            label = QLabel(f"{key}: {value}", label_widget)
-            label.setStyleSheet(label_style)  # Применяем стиль для текста
-            label_layout.addWidget(label)
+        self.type_combo_master.setStyleSheet(combo_style)
+        layout.addWidget(self.type_label_master, 0, 0)
+        layout.addWidget(self.type_combo_master, 1, 0)
 
-        # Устанавливаем контейнер с QLabel в ScrollArea
-        scroll_area.setWidget(label_widget)
+
+
+        # Добавляем дополнительные опции 1, 2, 3
+        self.option1_label_master = QLabel("Additional Option 1")
+        self.option1_label_master.setStyleSheet(label_style)
+        # Инициализируем QComboBox
+        self.option1_combo_master = QComboBox(self)
+        self.option1_combo_master.setStyleSheet(combo_style)
+        # Настроим обработчик для выбора
+        self.option1_combo_master.currentIndexChanged.connect(self.on_change_master_option1)
+        layout.addWidget(self.option1_label_master, 2, 0)
+        layout.addWidget(self.option1_combo_master, 3, 0)
+
+        # Добавляем дополнительные опции 1, 2, 3
+        self.option2_label_master = QLabel("Additional Option 2")
+        self.option2_label_master.setStyleSheet(label_style)
+        # Инициализируем QComboBox
+        self.option2_combo_master = QComboBox(self)
+        self.option2_combo_master.setStyleSheet(combo_style)
+        # Настроим обработчик для выбора
+        self.option2_combo_master.currentIndexChanged.connect(self.on_change_master_option2)
+        layout.addWidget(self.option2_label_master,4,0)
+        layout.addWidget(self.option2_combo_master,5,0)
+
+        # Добавляем дополнительные опции 1, 2, 3
+        self.option3_label_master = QLabel("Additional Option 3")
+        self.option3_label_master.setStyleSheet(label_style)
+        # Инициализируем QComboBox
+        self.option3_combo_master = QComboBox(self)
+        self.option3_combo_master.setStyleSheet(combo_style)
+        # Настроим обработчик для выбора
+        self.option3_combo_master.currentIndexChanged.connect(self.on_change_master_option3)
+        layout.addWidget(self.option3_label_master,6,0)
+        layout.addWidget(self.option3_combo_master,7,0)
+
+        # Создаем кнопку для добавления алгоритма
+        add_button = QPushButton("Add Algoritm", separation_dialog)
+        add_button.setStyleSheet(button_style)  # Применяем стиль для кнопок
+        add_button.clicked.connect(self.add_algoritm)
+        layout.addWidget(add_button,8,0)
+
+
+
+        # ПРАВЫЙ СТОЛБЕЦ
+        self.algo_list_label = QLabel("Selected Algo:")
+        self.algo_list_label.setStyleSheet(label_style)
+        layout.addWidget(self.algo_list_label, 0, 1, alignment=Qt.AlignmentFlag.AlignTop)
+        # текстовое поле для списка файлов
+        self.algo_list_text = QTextEdit(self)
+        self.algo_list_text.toPlainText()
+        self.algo_list_text.setMinimumWidth(350)
+        self.algo_list_text.setMinimumHeight(386)
+        layout.addWidget(self.algo_list_text, 1, 1, 10, 1, alignment=Qt.AlignmentFlag.AlignTop)
+
+        # заполняем текстовое поле
+        selected_algo_text = ""
+        for new_item in self.selected_algoritms_list:
+            key = new_item["selected_key"]
+            selected_opt1 = new_item["selected_opt1"]
+            selected_opt2 = new_item["selected_opt2"]
+            selected_opt3 = new_item["selected_opt3"]
+
+            alg_name = self.data[key]
+            selected_algo_text += f"{alg_name}"
+            selected_algorithm = self.algorithm_fields[key]
+            if len(self.algorithm_fields[key]) > 0:
+                alg_opt1 = json.loads(selected_algorithm[0]['options'])
+                opt1_text = alg_opt1[selected_opt1]
+                selected_algo_text += f": {opt1_text}"
+            if len(self.algorithm_fields[key]) > 1:
+                alg_opt2 = json.loads(selected_algorithm[1]['options'])
+                opt2_text = alg_opt2[selected_opt2]
+                selected_algo_text += f", {opt2_text}"
+            if len(self.algorithm_fields[key]) > 2:
+                alg_opt3 = json.loads(selected_algorithm[2]['options'])
+                opt3_text = alg_opt3[selected_opt3]
+                selected_algo_text += f", {opt3_text}"
+
+            selected_algo_text += f"\n"
+
+        self.algo_list_text.setText("")
+        self.algo_list_text.setText(selected_algo_text)     
 
         # Создаем кнопку для закрытия формы
-        close_button = QPushButton("Close", separation_dialog)
+        close_button = QPushButton("Select Algoritms", separation_dialog)
         close_button.setStyleSheet(button_style)  # Применяем стиль для кнопок
         close_button.clicked.connect(separation_dialog.accept)
+        layout.addWidget(close_button,8,1)
 
-        # Создаем основной layout и добавляем в него ScrollArea и кнопку
-        layout = QVBoxLayout(separation_dialog)
-        layout.addWidget(scroll_area)
-        layout.addWidget(close_button)
+        # Создаем кнопку для очистки алгоритмов
+        clear_algo_button = QPushButton("Clear Algoritms", separation_dialog)
+        clear_algo_button.setStyleSheet(button_style)  # Применяем стиль для кнопок
+        clear_algo_button.clicked.connect(self.clear_algo)
+        layout.addWidget(clear_algo_button, 9, 0, 2, 0)
+
 
         # Устанавливаем layout в диалоговое окно
         separation_dialog.setLayout(layout)
@@ -692,93 +792,136 @@ class MainWindow(QWidget):
         separation_dialog.exec()
 
 
-    def show_get_result(self):
-        dialog = GetResultDialog(self)
-        dialog.exec()
+
+    def clear_algo(self):
+        self.selected_algoritms_list = []
+        self.algo_list_text.setText("")
 
 
-class GetResultDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Get Separation Result")
-        self.setGeometry(150, 150, 400, 200)
 
-        layout = QVBoxLayout()
+    def add_algoritm(self):
+        # Получаем выбранный текст
+        selected_item = self.type_combo_master.currentText()
+        for key, value in self.data.items():
+            if value == selected_item:
+                separation_type = key
+                break
 
-        # Лейбл и поле для ввода хеша
-        self.hash_label = QLabel("Enter Hash")
-        self.hash_input = QLineEdit()
-        self.hash_input.setPlaceholderText("Enter the hash to check")
-        self.hash_input.setStyleSheet(input_style)
-        layout.addWidget(self.hash_label)
-        layout.addWidget(self.hash_input)
+        self.clear_styles()
+        if not separation_type:  # Если тип сепарации не выбран
+            self.type_combo_master.setStyleSheet(f"border: 2px solid red; {combo_style}")
 
-        # Кнопка для проверки
-        self.check_button = QPushButton("Check")
-        self.check_button.setStyleSheet(button_style)
-        self.check_button.clicked.connect(self.check_hash)
-        layout.addWidget(self.check_button)
-
-        self.setLayout(layout)
-
-    def check_hash(self):
-        # Получаем введенный хеш
-        hash_value = self.hash_input.text().strip()
-
-        if not hash_value:
-            QMessageBox.warning(self, "Input Error", "Please enter a valid hash.")
-            return
-
-        # Проверка статуса хеша
-        result = self.check_status(hash_value)
-
-        # Если статус успешен, открываем диалог для выбора папки
-        if result["success"]:
-            folder_path = QFileDialog.getExistingDirectory(self, "Select Folder to Save")
-            if folder_path:
-                # Получаем результат
-                result_text = get_result.get_result(hash_value, folder_path)
-                if result_text != "":
-                    # Выводим текстовый результат в диалоге
-                    self.show_result(result_text)
         else:
-            # Если произошла ошибка, показываем сообщение
-            QMessageBox.warning(self, "Error", "An error occurred while retrieving file data.")
+            new_item = {}
+            new_item["selected_key"] = key
+            new_item["selected_opt1"] = self.selected_opt1
+            new_item["selected_opt2"] = self.selected_opt2
+            new_item["selected_opt3"] = self.selected_opt3
+            self.selected_algoritms_list.append(new_item)
 
-    def check_status(self, hash_value):
-        success, data = get_result.check_result(hash_value)
-        return {"success": success}  # Успешный результат
+            # заполняем текстовое поле
+            selected_algo_text = ""
+            for new_item in self.selected_algoritms_list:
+                key = new_item["selected_key"]
+                selected_opt1 = new_item["selected_opt1"]
+                selected_opt2 = new_item["selected_opt2"]
+                selected_opt3 = new_item["selected_opt3"]
 
-    def show_result(self, result_text):
-        # Показываем результат в новом окне с текстом
-        QMessageBox.information(self, "Result", result_text)
+                alg_name = self.data[key]
+                selected_algo_text += f"{alg_name}"
+                selected_algorithm = self.algorithm_fields[key]
+                if len(self.algorithm_fields[key]) > 0:
+                    alg_opt1 = json.loads(selected_algorithm[0]['options'])
+                    opt1_text = alg_opt1[selected_opt1]
+                    selected_algo_text += f": {opt1_text}"
+                if len(self.algorithm_fields[key]) > 1:
+                    alg_opt2 = json.loads(selected_algorithm[1]['options'])
+                    opt2_text = alg_opt2[selected_opt2]
+                    selected_algo_text += f", {opt2_text}"
+                if len(self.algorithm_fields[key]) > 2:
+                    alg_opt3 = json.loads(selected_algorithm[2]['options'])
+                    opt3_text = alg_opt3[selected_opt3]
+                    selected_algo_text += f", {opt3_text}"
+
+                selected_algo_text += f"\n"
+
+            self.algo_list_text.setText("")
+            self.algo_list_text.setText(selected_algo_text)            
+
+    def on_selection_master_change(self, index):
+        # Получаем выбранный текст
+        selected_item = self.type_combo_master.currentText()
+
+        # Ищем соответствующий ключ для выбранного значения
+        for key, value in self.data.items():
+            if value == selected_item:
+                self.selected_key = key
+                
+                selected_algorithm = self.algorithm_fields[key]
+                # очищаем все ComboBox в окне мастера
+                self.option1_combo_master.clear()
+                self.option2_combo_master.clear()
+                self.option3_combo_master.clear()
+                self.option1_label_master.setText("Additional Option 1")
+                self.option2_label_master.setText("Additional Option 2")
+                self.option3_label_master.setText("Additional Option 3")
+
+                if len(self.algorithm_fields[key]) > 0:
+                    self.option1_label_master.setText(f"Additional Option 1: {selected_algorithm[0]['text']}")
+                    self.alg_opt1 = json.loads(selected_algorithm[0]['options'])
+                    # Сортируем словарь по ключу
+                    sorted_data = {k: v for k, v in sorted(self.alg_opt1.items())}
+                    value = sorted_data.values()
+                    # Добавляем элементы в комбобокс
+                    self.option1_combo_master.addItems(value)
+
+                if len(self.algorithm_fields[key]) > 1:
+                    self.option2_label_master.setText(f"Additional Option 2: {selected_algorithm[1]['text']}")
+                    self.alg_opt2 = json.loads(selected_algorithm[1]['options'])
+                    # Сортируем словарь по ключу
+                    sorted_data = {k: v for k, v in sorted(self.alg_opt2.items())}
+                    value = sorted_data.values()
+                    # Добавляем элементы в комбобокс
+                    self.option2_combo_master.addItems(value)
+               
+                if len(self.algorithm_fields[key]) > 2:
+                    self.option3_label_master.setText(f"Additional Option 3: {selected_algorithm[2]['text']}")
+                    self.alg_opt3 = json.loads(selected_algorithm[2]['options'])
+                    # Сортируем словарь по ключу
+                    sorted_data = {k: v for k, v in sorted(self.alg_opt3.items())}
+                    value = sorted_data.values()
+                    # Добавляем элементы в комбобокс
+                    self.option3_combo_master.addItems(value)
+
+                break
 
 
+    def on_change_master_option1(self, index):
+        # Получаем выбранный текст
+        selected_item = self.option1_combo_master.currentText()
+        # Ищем соответствующий ключ для выбранного значения
+        for key, value in self.alg_opt1.items():
+            if value == selected_item:
+                self.selected_opt1 = key
+                break
 
+    def on_change_master_option2(self, index):
+        # Получаем выбранный текст
+        selected_item = self.option2_combo_master.currentText()
+        # Ищем соответствующий ключ для выбранного значения
+        for key, value in self.alg_opt2.items():
+            if value == selected_item:
+                self.selected_opt2 = key
+                break
 
-
-class ResultDialog(QDialog):
-    def __init__(self, parent, result):
-        super().__init__(parent)
-        self.setWindowTitle("Separation Result")
-        self.setGeometry(150, 150, 400, 200)
-        layout = QVBoxLayout()
-
-        if result["success"]:
-            # Если успешный результат, показываем хеш
-            self.result_label = QLabel(f"Separation Successful!\nHash: {result['hash']}")
-            self.result_label.setStyleSheet(label_style)
-            self.result_input = QLineEdit(result['hash'])
-            self.result_input.setStyleSheet(input_style)
-            self.result_input.setReadOnly(True)  # Делаем поле только для чтения
-            layout.addWidget(self.result_label)
-            layout.addWidget(self.result_input)
-        else:
-            # Если ошибка, показываем сообщение об ошибке
-            self.result_label = QLabel(f"Error: {result['error']}")
-            layout.addWidget(self.result_label)
-
-        self.setLayout(layout)
+    def on_change_master_option3(self, index):
+        # Получаем выбранный текст
+        selected_item = self.option3_combo_master.currentText()
+        # Ищем соответствующий ключ для выбранного значения
+        for key, value in self.alg_opt3.items():
+            if value == selected_item:
+                self.selected_opt3 = key
+                break
 
 
 if __name__ == "__main__":
