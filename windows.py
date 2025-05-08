@@ -319,7 +319,7 @@ class MainWindow(QWidget):
         layout.addWidget(self.api_link_label, 2, 0)
 
         # Кнопка для запуска мастера
-        self.master_button = QPushButton("Algo Master")
+        self.master_button = QPushButton("Algorithms Master")
         self.master_button.setAcceptDrops(True)
         self.master_button.setStyleSheet(button_style)
         self.master_button.clicked.connect(self.start_master)
@@ -718,7 +718,7 @@ class MainWindow(QWidget):
         layout.addWidget(self.option3_combo_master,7,0)
 
         # Создаем кнопку для добавления алгоритма
-        add_button = QPushButton("Add Algoritm", separation_dialog)
+        add_button = QPushButton("Add Algorithm", separation_dialog)
         add_button.setStyleSheet(button_style)  # Применяем стиль для кнопок
         add_button.clicked.connect(self.add_algoritm)
         layout.addWidget(add_button,8,0)
@@ -726,7 +726,7 @@ class MainWindow(QWidget):
 
 
         # ПРАВЫЙ СТОЛБЕЦ
-        self.algo_list_label = QLabel("Selected Algo:")
+        self.algo_list_label = QLabel("Selected Algorithms:")
         self.algo_list_label.setStyleSheet(label_style)
         layout.addWidget(self.algo_list_label, 0, 1, alignment=Qt.AlignmentFlag.AlignTop)
         # текстовое поле для списка файлов
@@ -766,13 +766,13 @@ class MainWindow(QWidget):
         self.algo_list_text.setText(selected_algo_text)     
 
         # Создаем кнопку для закрытия формы
-        close_button = QPushButton("Select Algoritms", separation_dialog)
+        close_button = QPushButton("Select Algorithms", separation_dialog)
         close_button.setStyleSheet(button_style)  # Применяем стиль для кнопок
         close_button.clicked.connect(separation_dialog.accept)
         layout.addWidget(close_button,8,1)
 
         # Создаем кнопку для очистки алгоритмов
-        clear_algo_button = QPushButton("Clear Algoritms", separation_dialog)
+        clear_algo_button = QPushButton("Clear Algorithms", separation_dialog)
         clear_algo_button.setStyleSheet(button_style)  # Применяем стиль для кнопок
         clear_algo_button.clicked.connect(self.clear_algo)
         layout.addWidget(clear_algo_button, 9, 0, 2, 0)
