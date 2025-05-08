@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 import sys
 from PyQt6.QtCore import QMimeData, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QDrag
+from PyQt6.QtGui import QIcon
 
 from mvsep_handlers import get_separation_types, create_separation, get_result
 
@@ -199,6 +200,9 @@ class DragButton(QPushButton):
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
+
+        icon_path = os.path.join(BASE_DIR, 'mvsep.ico')
+        self.setWindowIcon(QIcon(icon_path))
         
         # Создаем подключение к базе данных (файл my_database.db будет создан)
         global connection
@@ -377,17 +381,6 @@ class MainWindow(QWidget):
         
         self.st = SepThread(api_token = self.api_input.text(), data_table = self.data_table, base_dir_label=self.base_dir_label)
         self.st.start()
-
-
-
-
-
-
-
-
-
-
-
 
 
     def clear_files(self):
